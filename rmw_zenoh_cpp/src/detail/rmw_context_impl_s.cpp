@@ -238,26 +238,25 @@ public:
   // Shutdown the Zenoh session.
   rmw_ret_t shutdown()
   {
+    std::optional<zenoh::Subscriber<void>> graph_subscriber;
     {
       std::lock_guard<std::recursive_mutex> lock(mutex_);
-      rmw_ret_t ret = RMW_RET_OK;
       if (is_shutdown_) {
-        return ret;
+        return RMW_RET_OK;
       }
-
-      zenoh::ZResult result;
-      std::move(graph_subscriber_).value().undeclare(&result);
-      if (result != Z_OK) {
-        RMW_ZENOH_LOG_ERROR_NAMED(
-          "rmw_zenoh_cpp",
-          "Unable to undeclare the liveliness token");
-        return RMW_RET_ERROR;
-      }
-
       is_shutdown_ = true;
+      graph_subscriber = std::move(graph_subscriber_);
+    }
 
-      // We specifically do *not* hold the mutex_ while tearing down the session; this allows us
-      // to avoid an AB/BA deadlock if shutdown is racing with graph_sub_data_handler().
+    // Undeclare waits for in-flight graph callbacks. Those callbacks acquire mutex_,
+    // so neither subscriber undeclaration nor session teardown may hold this lock.
+    zenoh::ZResult result;
+    std::move(graph_subscriber).value().undeclare(&result);
+    if (result != Z_OK) {
+      RMW_ZENOH_LOG_ERROR_NAMED(
+        "rmw_zenoh_cpp",
+        "Unable to undeclare the liveliness subscriber");
+      return RMW_RET_ERROR;
     }
 
     // Drop the shared session.

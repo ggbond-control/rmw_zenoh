@@ -81,7 +81,7 @@ TopicInfo::TopicInfo(
   rmw_qos_profile_t qos)
 : name_(std::move(name)),
   type_(std::move(type)),
-  type_hash_(std::move(type_hash)),
+  type_hash_("TypeHashNotSupported"),
   qos_(std::move(qos))
 {
   topic_keyexpr_ = std::to_string(domain_id);
